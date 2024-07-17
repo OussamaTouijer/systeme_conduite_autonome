@@ -1,0 +1,142 @@
+/* systeme_conduite_autonome
+ * Auteurs TOUIJER & ASSAL
+ * IAO
+ * 2023 - 2024
+ */
+SYSTEM
+    systeme_conduite_autonome
+
+SETS
+    Vehicules;  // Ensemble des vehicules
+    Capteurs;   // Ensemble des capteurs
+    Etats = { arret, conduite, stationnement, urgence }  // Ensemble des etats possibles des vehicules
+
+CONSTANTES
+    controle_central,  // Controle central pour gerer le système
+    vehicule_defaut    // vehicules par defaut dans le système
+
+PROPRIETES
+    controle_central : Vehicules &
+    vehicule_defaut : Vehicules &
+    controle_central /= vehicule_defaut  // Le controle central et le vehicule par defaut doivent etre distincts
+
+VARIABLES
+    vehicules,           // Ensemble des vehicules actifs
+    capteurs,            // Ensemble des capteurs actifs
+    capteurs_vehicule,   // Association entre véhicules et capteurs
+    
+    etats_vehicule,      // États actuels des vehicules
+    statut_urgence       // Statut d'urgence global
+
+INVARIANT
+    vehicules <: Vehicules &
+    capteurs <: Capteurs &
+    capteurs_vehicule : vehicules <-> capteurs &
+    
+    etats_vehicule : vehicules --> Etats &
+    statut_urgence : BOOL
+
+INITIALISATION
+    vehicules := { controle_central, vehicule_defaut } ||
+    capteurs := {} ||
+    capteurs_vehicule := {} ||
+    
+    etats_vehicule := { controle_central |-> arret, vehicule_defaut |-> arret } ||
+    statut_urgence := FALSE
+
+EVENEMENTS
+    ajouter_vehicule =
+    ANY vehicule
+    WHERE
+        vehicule : Vehicules &
+        vehicule /: vehicules
+    THEN
+        vehicules := vehicules \/ {vehicule} ||
+        etats_vehicule := etats_vehicule \/ { vehicule |-> arret }
+    END;
+
+    ajouter_capteur =
+    ANY capteur
+    WHERE
+        capteur : Capteurs &
+        capteur /: capteurs
+    THEN
+        capteurs := capteurs \/ {capteur}
+    END;
+    
+    attacher_capteur_a_vehicule =
+    ANY vehicule, capteur
+    WHERE
+        vehicule : vehicules &
+        capteur : capteurs &
+        capteur /: capteurs_vehicule~[{vehicule}]
+    THEN
+        capteurs_vehicule := capteurs_vehicule \/ { vehicule |-> capteur }
+    END;
+
+    detacher_capteur_du_vehicule =
+    ANY vehicule, capteur
+    WHERE
+        vehicule : vehicules &
+        capteur : capteurs &
+        capteur : capteurs_vehicule~[{vehicule}]
+    THEN
+        capteurs_vehicule := capteurs_vehicule - { vehicule |-> capteur }
+    END;
+
+    changer_etat_vehicule =
+    ANY vehicule, etat
+    WHERE
+        vehicule : vehicules &
+        etat : Etats
+    THEN
+        etats_vehicule(vehicule) := etat
+    END;
+
+    declencher_urgence =
+    WHERE
+        statut_urgence = FALSE
+    THEN
+        statut_urgence := TRUE ||
+        etats_vehicule := etats_vehicule <+ { v |-> urgence | v . vehicules }
+    END;
+
+    resoudre_urgence =
+    WHERE
+        statut_urgence = TRUE
+    THEN
+        statut_urgence := FALSE ||
+        etats_vehicule := etats_vehicule <+ { v |-> arret | v . vehicules /\ etats_vehicule(v) = urgence }
+    END;
+
+    envoyer_commande =
+    ANY vehicule, commande
+    WHERE
+        vehicule : vehicules &
+        commande : { arret, conduite, stationnement } &
+        etats_vehicule(vehicule) /= urgence
+    THEN
+        etats_vehicule(vehicule) := commande
+    END;
+
+    mettre_a_jour_capteur =
+    ANY vehicule, capteur, nouvelle_valeur
+    WHERE
+        vehicule : vehicules &
+        capteur : capteurs_vehicule~[{vehicule}] &
+        nouvelle_valeur : BOOL
+    THEN
+        // Mise à jour de la valeur du capteur
+        // Cette section peut être detaillée en fonction des capteurs specifiques et des valeurs qu'ils peuvent prendre
+    END;
+
+    retirer_vehicule =
+    ANY vehicule
+    WHERE
+        vehicule : vehicules - {controle_central, vehicule_defaut}
+    THEN
+        vehicules := vehicules - {vehicule} ||
+        capteurs_vehicule := {vehicule} <<| capteurs_vehicule ||
+        etats_vehicule := {vehicule} <<| etats_vehicule
+    END
+END
